@@ -44,20 +44,20 @@ interface Params {
 }
 
 const DEFAULT_RATES = {
-  formFillRate: 1,
-  formAbandonRate: 20,
-  abandonToDemo: 50,
-  demoToDeal: 50,
-  dealWinRate: 40,
-  coldReachToMeeting: 2,
-  warmReachToMeeting: 8,
-  meetingToDeal: 30,
-  dealToClose: 40,
-  warmAccountPct: 20,
+  formFillRate: 1,          // B2B SaaS conservative floor: 1–2%. Source: First Page Sage, Chili Piper 2025
+  formAbandonRate: 67,      // Industry average: 67–70%. Source: Formstack 2025, Feathery 150-form study
+  abandonToDemo: 5,         // Post-recovery follow-up: 5–8% book a demo. Source: Insiteful, practitioner data
+  demoToDeal: 30,           // Conservative end of 30–35% range. Source: Operatix 500+ campaigns, Chili Piper
+  dealWinRate: 20,          // Mid-market B2B average: 20–22%. Source: HubSpot 2024, Pavilion/Ebsta
+  coldReachToMeeting: 2,    // ~1–2% cold email+call blended. Source: SalesLoft, Gradient Works
+  warmReachToMeeting: 6,    // ~3x cold (conservative end of 3–5x). Source: Demandbase, 6sense
+  meetingToDeal: 40,        // Conservative end of 40–50%. Source: Operatix 52.7% avg, Gartner
+  dealToClose: 20,          // Same as win rate — deal stage to closed won
+  warmAccountPct: 5,        // Ehrenberg-Bass 95:5 rule: only 5% of TAM in active buying cycle at any time
   crmYears: 5,
-  reactivationRate: 12,
-  reactivationDemoRate: 30,
-  reactivationWinRate: 25,
+  reactivationRate: 10,     // Low end of 10–15% returning. Source: Mixed Media Ventures, practitioner data
+  reactivationDemoRate: 7,  // Mid of 5–10% re-engaged → demo. Source: Mutare, Intelemark reactivation studies
+  reactivationWinRate: 15,  // Conservative end of 15–20%. Source: Mixed Media Ventures, Adonis Media
   linkedinRoiGain: 20,
   googleRoiGain: 10,
 };
@@ -417,30 +417,30 @@ export default function Home() {
               <h3 className="font-semibold text-gray-900 mb-1">Conversion Rates</h3>
               <p className="text-xs text-gray-400 mb-5">Industry defaults — adjust to match the prospect.</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                <NumericInput label="Form Fill Rate" value={params.formFillRate} onChange={set("formFillRate")} suffix="%" note="B2B SaaS average is 1–3% of site traffic. Source: Unbounce Conversion Benchmark Report." />
-                <NumericInput label="Form Abandon Rate" value={params.formAbandonRate} onChange={set("formAbandonRate")} suffix="%" note="~20% of visitors start but don't complete forms. Source: Formstack Form Conversion Report." />
-                <NumericInput label="Abandon → Demo" value={params.abandonToDemo} onChange={set("abandonToDemo")} suffix="%" note="Form starters show high intent; estimated 50% can be converted to a demo with timely follow-up." />
-                <NumericInput label="Demo → Deal" value={params.demoToDeal} onChange={set("demoToDeal")} suffix="%" note="Mid-market B2B SaaS benchmark: 40–60% demo-to-opportunity rate. Source: OpenView SaaS Benchmarks." />
-                <NumericInput label="Deal Win Rate" value={params.dealWinRate} onChange={set("dealWinRate")} suffix="%" note="Typical B2B SaaS win rate is 20–50%. Source: HubSpot State of Sales Report." />
+                <NumericInput label="Form Fill Rate" value={params.formFillRate} onChange={set("formFillRate")} suffix="%" note="Conservative floor: 1–2% of all traffic. Source: First Page Sage B2B SaaS Funnel Benchmarks, Chili Piper 2025." />
+                <NumericInput label="Form Abandon Rate" value={params.formAbandonRate} onChange={set("formAbandonRate")} suffix="%" note="Industry average is 67–70%. Even optimised forms with 3–5 fields see 50–60% abandonment. Source: Formstack 2025, Feathery." />
+                <NumericInput label="Abandon → Demo" value={params.abandonToDemo} onChange={set("abandonToDemo")} suffix="%" note="Of recovered abandon contacts, 5–8% book a demo. Intent signal is weak — they left. Source: Insiteful, practitioner benchmarks." />
+                <NumericInput label="Demo → Deal" value={params.demoToDeal} onChange={set("demoToDeal")} suffix="%" note="Conservative end of 30–35% range for mid-market. Source: Operatix 500+ SDR campaigns, Chili Piper 2025." />
+                <NumericInput label="Deal Win Rate" value={params.dealWinRate} onChange={set("dealWinRate")} suffix="%" note="Mid-market B2B average is 20–22%. Source: HubSpot 2024 Sales Trends, Pavilion/Ebsta 4.2M opportunity study." />
               </div>
 
               <h3 className="font-semibold text-gray-900 mb-1">Outbound Rates</h3>
               <p className="text-xs text-gray-400 mb-5">Cold vs warm outreach performance.</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                <NumericInput label="Cold Reach → Meeting" value={params.coldReachToMeeting} onChange={set("coldReachToMeeting")} suffix="%" note="Industry average cold outbound reach-to-meeting rate is 1–3%. Source: Outreach.io / SalesLoft benchmarks." />
-                <NumericInput label="Warm Reach → Meeting" value={params.warmReachToMeeting} onChange={set("warmReachToMeeting")} suffix="%" note="Intent-based outreach sees 3–5x higher response rates vs cold. Source: Demandbase / 6sense research." />
-                <NumericInput label="Meeting → Deal" value={params.meetingToDeal} onChange={set("meetingToDeal")} suffix="%" note="B2B SaaS average meeting-to-opportunity conversion is 25–35%. Source: Salesforce State of Sales." />
-                <NumericInput label="Deal → Close" value={params.dealToClose} onChange={set("dealToClose")} suffix="%" note="Standard B2B pipeline close rate is 30–50%. Source: Salesforce benchmarks." />
-                <NumericInput label="Warm Account %" value={params.warmAccountPct} onChange={set("warmAccountPct")} suffix="%" note="At any given time, ~20% of your TAM is in an active buying cycle. Source: Gartner B2B Buying Research." />
+                <NumericInput label="Cold Reach → Meeting" value={params.coldReachToMeeting} onChange={set("coldReachToMeeting")} suffix="%" note="~1–2% blended across email and calls. Source: SalesLoft, Gradient Works SDR Benchmarks 2024." />
+                <NumericInput label="Warm Reach → Meeting" value={params.warmReachToMeeting} onChange={set("warmReachToMeeting")} suffix="%" note="Conservative 3x uplift over cold (3–5x range). Source: Demandbase warm outbound guide, 6sense intent data." />
+                <NumericInput label="Meeting → Deal" value={params.meetingToDeal} onChange={set("meetingToDeal")} suffix="%" note="Conservative end of 40–50%. Operatix 10-yr dataset (500+ campaigns) shows 52.7% average. Source: Operatix, Gartner." />
+                <NumericInput label="Deal → Close" value={params.dealToClose} onChange={set("dealToClose")} suffix="%" note="Same rate as win rate. Mid-market B2B average: 20–22%. Source: HubSpot 2024, Pavilion/Ebsta." />
+                <NumericInput label="Warm Account %" value={params.warmAccountPct} onChange={set("warmAccountPct")} suffix="%" note="Only ~5% of your TAM is in an active buying cycle at any time — the Ehrenberg-Bass 95:5 Rule. Source: Forrester, Gartner." />
               </div>
 
               <h3 className="font-semibold text-gray-900 mb-1">CRM Reactivation</h3>
               <p className="text-xs text-gray-400 mb-5">Old leads returning to the website.</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <NumericInput label="CRM Lead History" value={params.crmYears} onChange={set("crmYears")} suffix="yrs" note="Standard lookback window for lead reactivation programs. Longer = larger pool but lower recency." />
-                <NumericInput label="Return to Site Rate" value={params.reactivationRate} onChange={set("reactivationRate")} suffix="%" note="10–15% of historical leads revisit the website within a year. Source: factors.ai platform data." />
-                <NumericInput label="Reactivation Demo Rate" value={params.reactivationDemoRate} onChange={set("reactivationDemoRate")} suffix="%" note="Re-engaged leads with prior intent convert to demos at a higher rate than cold traffic." />
-                <NumericInput label="Reactivation Win Rate" value={params.reactivationWinRate} onChange={set("reactivationWinRate")} suffix="%" note="Returning leads already familiar with the product have higher close rates than net-new prospects." />
+                <NumericInput label="Return to Site Rate" value={params.reactivationRate} onChange={set("reactivationRate")} suffix="%" note="Conservative low end: 10% of dormant leads return to site within 12 months. Source: Mixed Media Ventures, Intelemark reactivation studies." />
+                <NumericInput label="Reactivation Demo Rate" value={params.reactivationDemoRate} onChange={set("reactivationDemoRate")} suffix="%" note="Of re-engaged contacts, 5–10% book a demo. Familiarity helps but timing is still uncertain. Source: Mutare, Insiteful." />
+                <NumericInput label="Reactivation Win Rate" value={params.reactivationWinRate} onChange={set("reactivationWinRate")} suffix="%" note="Conservative end of 15–20% close rate for reactivated leads. Source: Mixed Media Ventures, Adonis Media." />
                 <NumericInput label="LinkedIn ROI Gain" value={params.linkedinRoiGain} onChange={set("linkedinRoiGain")} suffix="%" note="Audience refinement via intent data typically yields 15–25% improvement. Source: LinkedIn Marketing Solutions case studies." />
                 <NumericInput label="Google ROI Gain" value={params.googleRoiGain} onChange={set("googleRoiGain")} suffix="%" note="Smart bidding + audience exclusion yields 8–12% efficiency gains. Source: Google Ads performance benchmarks." />
               </div>
