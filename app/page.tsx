@@ -86,74 +86,86 @@ function calcROI(p: Params) {
   const annualTraffic = p.monthlyTraffic * 12;
   const annualFormFills = annualTraffic * (p.formFillRate / 100);
 
-  // Warmbound
-  const coldDeals = p.tam * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
+  // Warmbound — pipeline stops before dealToClose (win rate)
+  const coldPipeline = p.tam * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100);
   const warmAccounts = p.tam * (p.warmAccountPct / 100);
-  const warmDeals = warmAccounts * (p.warmReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
-  const warmboundUplift = Math.max(0, warmDeals - coldDeals) * p.acv;
+  const warmPipeline = warmAccounts * (p.warmReachToMeeting / 100) * (p.meetingToDeal / 100);
+  const warmboundPipeline = Math.max(0, warmPipeline - coldPipeline) * p.acv;
+  const warmboundRevenue = warmboundPipeline * (p.dealToClose / 100);
 
-  // Form abandonment
+  // Form abandonment — pipeline stops before dealWinRate
   const abandonedForms = annualFormFills * (p.formAbandonRate / 100);
   const formDemos = abandonedForms * (p.abandonToDemo / 100);
   const formDeals = formDemos * (p.demoToDeal / 100);
+  const formPipeline = formDeals * p.acv;
   const formWins = formDeals * (p.dealWinRate / 100);
-  const formAbandonRevenue = formWins * p.acv;
+  const formRevenue = formWins * p.acv;
 
-  // CRM reactivation
+  // CRM reactivation — pipeline stops before reactivationWinRate
   const crmLeads = annualFormFills * p.crmYears;
   const reactivatedLeads = crmLeads * (p.reactivationRate / 100);
   const reactivationDemos = reactivatedLeads * (p.reactivationDemoRate / 100);
+  const reactivationPipeline = reactivationDemos * p.acv;
   const reactivationWins = reactivationDemos * (p.reactivationWinRate / 100);
   const reactivationRevenue = reactivationWins * p.acv;
 
-  // Ad efficiency
-  const linkedinGain = p.linkedinAdSpend * 12 * (p.linkedinRoiGain / 100);
-  const googleGain = p.googleAdSpend * 12 * (p.googleRoiGain / 100);
+  // Ad savings (not pipeline/revenue — treated separately)
+  const linkedinSavings = p.linkedinAdSpend * 12 * (p.linkedinRoiGain / 100);
+  const googleSavings = p.googleAdSpend * 12 * (p.googleRoiGain / 100);
 
-  const total = warmboundUplift + formAbandonRevenue + reactivationRevenue + linkedinGain + googleGain;
+  const totalPipeline = warmboundPipeline + formPipeline + reactivationPipeline;
+  const totalRevenue = warmboundRevenue + formRevenue + reactivationRevenue;
+  const totalAdSavings = linkedinSavings + googleSavings;
 
   return {
-    total,
+    totalPipeline,
+    totalRevenue,
+    totalAdSavings,
     warmbound: {
-      value: warmboundUplift,
+      pipeline: warmboundPipeline,
+      revenue: warmboundRevenue,
       steps: [
         `${fmtNum(p.tam)} TAM × ${pct(p.warmAccountPct)} showing intent = ${fmtNum(warmAccounts)} warm accounts`,
-        `${fmtNum(warmAccounts)} × ${pct(p.warmReachToMeeting)} reach→meeting × ${pct(p.meetingToDeal)} →deal × ${pct(p.dealToClose)} close = ${fmtNum(warmDeals)} warm deals`,
-        `Cold baseline: ${fmtNum(p.tam)} × ${pct(p.coldReachToMeeting)} × ${pct(p.meetingToDeal)} × ${pct(p.dealToClose)} = ${fmtNum(coldDeals)} deals`,
-        `Uplift: (${fmtNum(warmDeals)} − ${fmtNum(coldDeals)}) × ${fmtMoney(p.acv)} ACV = ${fmtMoney(warmboundUplift)}`,
+        `Warm pipeline: ${fmtNum(warmAccounts)} × ${pct(p.warmReachToMeeting)} reach→meeting × ${pct(p.meetingToDeal)} →deal = ${fmtNum(warmPipeline)} deals`,
+        `Cold baseline: ${fmtNum(p.tam)} × ${pct(p.coldReachToMeeting)} × ${pct(p.meetingToDeal)} = ${fmtNum(coldPipeline)} deals`,
+        `Pipeline uplift: (${fmtNum(warmPipeline)} − ${fmtNum(coldPipeline)}) × ${fmtMoney(p.acv)} ACV = ${fmtMoney(warmboundPipeline)}`,
+        `Revenue: ${fmtMoney(warmboundPipeline)} × ${pct(p.dealToClose)} win rate = ${fmtMoney(warmboundRevenue)}`,
       ],
     },
     formAbandonment: {
-      value: formAbandonRevenue,
+      pipeline: formPipeline,
+      revenue: formRevenue,
       steps: [
         `${fmtNum(p.monthlyTraffic)}/mo × 12 = ${fmtNum(annualTraffic)} annual visitors`,
-        `× ${pct(p.formFillRate)} form fill rate = ${fmtNum(annualFormFills)} form submissions/yr`,
-        `× ${pct(p.formAbandonRate)} abandon rate = ${fmtNum(abandonedForms)} abandoned forms`,
-        `× ${pct(p.abandonToDemo)} →demo = ${fmtNum(formDemos)} → × ${pct(p.demoToDeal)} →deal = ${fmtNum(formDeals)} → × ${pct(p.dealWinRate)} win = ${fmtNum(formWins)} closed`,
-        `${fmtNum(formWins)} × ${fmtMoney(p.acv)} ACV = ${fmtMoney(formAbandonRevenue)}`,
+        `× ${pct(p.formFillRate)} form fill = ${fmtNum(annualFormFills)} submissions → × ${pct(p.formAbandonRate)} abandoned = ${fmtNum(abandonedForms)}`,
+        `× ${pct(p.abandonToDemo)} →demo = ${fmtNum(formDemos)} → × ${pct(p.demoToDeal)} →deal = ${fmtNum(formDeals)} deals`,
+        `Pipeline: ${fmtNum(formDeals)} × ${fmtMoney(p.acv)} ACV = ${fmtMoney(formPipeline)}`,
+        `Revenue: ${fmtNum(formDeals)} × ${pct(p.dealWinRate)} win rate = ${fmtNum(formWins)} won × ${fmtMoney(p.acv)} = ${fmtMoney(formRevenue)}`,
       ],
     },
     reactivation: {
-      value: reactivationRevenue,
+      pipeline: reactivationPipeline,
+      revenue: reactivationRevenue,
       steps: [
         `${fmtNum(annualFormFills)} annual form fills × ${p.crmYears} yrs = ${fmtNum(crmLeads)} CRM leads`,
-        `× ${pct(p.reactivationRate)} return to site = ${fmtNum(reactivatedLeads)} re-engaged leads`,
+        `× ${pct(p.reactivationRate)} return to site = ${fmtNum(reactivatedLeads)} re-engaged`,
         `× ${pct(p.reactivationDemoRate)} demo rate = ${fmtNum(reactivationDemos)} demos`,
-        `× ${pct(p.reactivationWinRate)} win rate = ${fmtNum(reactivationWins)} deals × ${fmtMoney(p.acv)} ACV = ${fmtMoney(reactivationRevenue)}`,
+        `Pipeline: ${fmtNum(reactivationDemos)} × ${fmtMoney(p.acv)} ACV = ${fmtMoney(reactivationPipeline)}`,
+        `Revenue: ${fmtNum(reactivationDemos)} × ${pct(p.reactivationWinRate)} win rate = ${fmtNum(reactivationWins)} won × ${fmtMoney(p.acv)} = ${fmtMoney(reactivationRevenue)}`,
       ],
     },
     linkedin: {
-      value: linkedinGain,
+      savings: linkedinSavings,
       steps: [
         `${fmtMoney(p.linkedinAdSpend)}/mo × 12 = ${fmtMoney(p.linkedinAdSpend * 12)} annual spend`,
-        `× ${pct(p.linkedinRoiGain)} efficiency gain = ${fmtMoney(linkedinGain)}`,
+        `× ${pct(p.linkedinRoiGain)} efficiency gain = ${fmtMoney(linkedinSavings)} saved`,
       ],
     },
     google: {
-      value: googleGain,
+      savings: googleSavings,
       steps: [
         `${fmtMoney(p.googleAdSpend)}/mo × 12 = ${fmtMoney(p.googleAdSpend * 12)} annual spend`,
-        `× ${pct(p.googleRoiGain)} efficiency gain = ${fmtMoney(googleGain)}`,
+        `× ${pct(p.googleRoiGain)} efficiency gain = ${fmtMoney(googleSavings)} saved`,
       ],
     },
   };
@@ -196,12 +208,43 @@ function NumericInput({
   );
 }
 
-function RoiRow({ label, value, steps }: { label: string; value: number; steps: string[] }) {
+function SalesRow({ label, pipeline, revenue, steps }: { label: string; pipeline: number; revenue: number; steps: string[] }) {
   return (
     <div className="py-4 border-b border-gray-100 last:border-0">
-      <div className="flex items-start justify-between gap-4 mb-2">
+      <div className="flex items-start justify-between gap-4 mb-3">
         <p className="text-sm font-semibold text-gray-800">{label}</p>
-        <span className="text-sm font-bold text-gray-900 shrink-0">{fmtMoney(value)}</span>
+        <div className="flex gap-4 shrink-0 text-right">
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Pipeline</p>
+            <p className="text-sm font-bold text-indigo-600">{fmtMoney(pipeline)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Revenue</p>
+            <p className="text-sm font-bold text-green-600">{fmtMoney(revenue)}</p>
+          </div>
+        </div>
+      </div>
+      <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="text-xs text-gray-400 shrink-0 mt-0.5">{i + 1}.</span>
+            <p className="text-xs font-mono text-gray-600">{step}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SavingsRow({ label, savings, steps }: { label: string; savings: number; steps: string[] }) {
+  return (
+    <div className="py-4 border-b border-gray-100 last:border-0">
+      <div className="flex items-start justify-between gap-4 mb-3">
+        <p className="text-sm font-semibold text-gray-800">{label}</p>
+        <div className="shrink-0 text-right">
+          <p className="text-xs text-gray-400 mb-0.5">Ad Savings</p>
+          <p className="text-sm font-bold text-amber-600">{fmtMoney(savings)}</p>
+        </div>
       </div>
       <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
         {steps.map((step, i) => (
@@ -405,15 +448,36 @@ export default function Home() {
 
             {/* ROI Summary */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
-              <h3 className="font-semibold text-gray-900 mb-5">Estimated Annual ROI</h3>
-              <RoiRow label="Warmbound Sales Uplift" value={roi.warmbound.value} steps={roi.warmbound.steps} />
-              <RoiRow label="Form Abandonment Recovery" value={roi.formAbandonment.value} steps={roi.formAbandonment.steps} />
-              <RoiRow label="CRM Lead Reactivation" value={roi.reactivation.value} steps={roi.reactivation.steps} />
-              <RoiRow label="LinkedIn Ads Efficiency" value={roi.linkedin.value} steps={roi.linkedin.steps} />
-              <RoiRow label="Google Ads Efficiency" value={roi.google.value} steps={roi.google.steps} />
-              <div className="border-t border-gray-200 pt-4 mt-2 flex items-center justify-between">
-                <span className="font-semibold text-gray-900">Total Annual ROI</span>
-                <span className="text-2xl font-bold text-blue-600">{fmtMoney(roi.total)}</span>
+              {/* Column legend */}
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-semibold text-gray-900">Estimated Annual ROI</h3>
+                <div className="flex gap-4 text-xs">
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />Pipeline</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500 inline-block" />Revenue</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />Ad Savings</span>
+                </div>
+              </div>
+
+              <SalesRow label="Warmbound Sales Uplift" pipeline={roi.warmbound.pipeline} revenue={roi.warmbound.revenue} steps={roi.warmbound.steps} />
+              <SalesRow label="Form Abandonment Recovery" pipeline={roi.formAbandonment.pipeline} revenue={roi.formAbandonment.revenue} steps={roi.formAbandonment.steps} />
+              <SalesRow label="CRM Lead Reactivation" pipeline={roi.reactivation.pipeline} revenue={roi.reactivation.revenue} steps={roi.reactivation.steps} />
+              <SavingsRow label="LinkedIn Ads Efficiency" savings={roi.linkedin.savings} steps={roi.linkedin.steps} />
+              <SavingsRow label="Google Ads Efficiency" savings={roi.google.savings} steps={roi.google.steps} />
+
+              {/* Totals */}
+              <div className="border-t border-gray-200 pt-4 mt-2 grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                  <p className="text-xs text-indigo-500 font-medium mb-1">Total Pipeline</p>
+                  <p className="text-xl font-bold text-indigo-600">{fmtMoney(roi.totalPipeline)}</p>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <p className="text-xs text-green-600 font-medium mb-1">Total Revenue</p>
+                  <p className="text-xl font-bold text-green-600">{fmtMoney(roi.totalRevenue)}</p>
+                </div>
+                <div className="text-center p-3 bg-amber-50 rounded-lg">
+                  <p className="text-xs text-amber-600 font-medium mb-1">Ad Savings</p>
+                  <p className="text-xl font-bold text-amber-600">{fmtMoney(roi.totalAdSavings)}</p>
+                </div>
               </div>
             </div>
           </>
