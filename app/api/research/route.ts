@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
           content: `Research this company domain and return the JSON: ${domain}`,
         },
       ],
-      temperature: 0.2,
+      temperature: 0,
     }),
   });
 

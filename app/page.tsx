@@ -62,38 +62,104 @@ const DEFAULT_RATES = {
   googleRoiGain: 10,
 };
 
-function fmt(n: number) {
+// ── formatting helpers ──────────────────────────────────────────────────────
+
+function fmtMoney(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+  return `$${Math.round(n).toLocaleString()}`;
 }
+
+function fmtNum(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return Math.round(n).toLocaleString();
+}
+
+function pct(n: number) {
+  return `${n}%`;
+}
+
+// ── ROI calculation ─────────────────────────────────────────────────────────
 
 function calcROI(p: Params) {
   const annualTraffic = p.monthlyTraffic * 12;
   const annualFormFills = annualTraffic * (p.formFillRate / 100);
 
-  const coldDeals =
-    p.tam * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
-  const warmDeals =
-    p.tam * (p.warmAccountPct / 100) * (p.warmReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
+  // Warmbound
+  const coldDeals = p.tam * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
+  const warmAccounts = p.tam * (p.warmAccountPct / 100);
+  const warmDeals = warmAccounts * (p.warmReachToMeeting / 100) * (p.meetingToDeal / 100) * (p.dealToClose / 100);
   const warmboundUplift = Math.max(0, warmDeals - coldDeals) * p.acv;
 
+  // Form abandonment
   const abandonedForms = annualFormFills * (p.formAbandonRate / 100);
-  const formAbandonRevenue =
-    abandonedForms * (p.abandonToDemo / 100) * (p.demoToDeal / 100) * (p.dealWinRate / 100) * p.acv;
+  const formDemos = abandonedForms * (p.abandonToDemo / 100);
+  const formDeals = formDemos * (p.demoToDeal / 100);
+  const formWins = formDeals * (p.dealWinRate / 100);
+  const formAbandonRevenue = formWins * p.acv;
 
+  // CRM reactivation
   const crmLeads = annualFormFills * p.crmYears;
   const reactivatedLeads = crmLeads * (p.reactivationRate / 100);
-  const reactivationRevenue =
-    reactivatedLeads * (p.reactivationDemoRate / 100) * (p.reactivationWinRate / 100) * p.acv;
+  const reactivationDemos = reactivatedLeads * (p.reactivationDemoRate / 100);
+  const reactivationWins = reactivationDemos * (p.reactivationWinRate / 100);
+  const reactivationRevenue = reactivationWins * p.acv;
 
+  // Ad efficiency
   const linkedinGain = p.linkedinAdSpend * 12 * (p.linkedinRoiGain / 100);
   const googleGain = p.googleAdSpend * 12 * (p.googleRoiGain / 100);
 
   const total = warmboundUplift + formAbandonRevenue + reactivationRevenue + linkedinGain + googleGain;
 
-  return { warmboundUplift, formAbandonRevenue, reactivationRevenue, linkedinGain, googleGain, total };
+  return {
+    total,
+    warmbound: {
+      value: warmboundUplift,
+      steps: [
+        `${fmtNum(p.tam)} TAM × ${pct(p.warmAccountPct)} showing intent = ${fmtNum(warmAccounts)} warm accounts`,
+        `${fmtNum(warmAccounts)} × ${pct(p.warmReachToMeeting)} reach→meeting × ${pct(p.meetingToDeal)} →deal × ${pct(p.dealToClose)} close = ${fmtNum(warmDeals)} warm deals`,
+        `Cold baseline: ${fmtNum(p.tam)} × ${pct(p.coldReachToMeeting)} × ${pct(p.meetingToDeal)} × ${pct(p.dealToClose)} = ${fmtNum(coldDeals)} deals`,
+        `Uplift: (${fmtNum(warmDeals)} − ${fmtNum(coldDeals)}) × ${fmtMoney(p.acv)} ACV = ${fmtMoney(warmboundUplift)}`,
+      ],
+    },
+    formAbandonment: {
+      value: formAbandonRevenue,
+      steps: [
+        `${fmtNum(p.monthlyTraffic)}/mo × 12 = ${fmtNum(annualTraffic)} annual visitors`,
+        `× ${pct(p.formFillRate)} form fill rate = ${fmtNum(annualFormFills)} form submissions/yr`,
+        `× ${pct(p.formAbandonRate)} abandon rate = ${fmtNum(abandonedForms)} abandoned forms`,
+        `× ${pct(p.abandonToDemo)} →demo = ${fmtNum(formDemos)} → × ${pct(p.demoToDeal)} →deal = ${fmtNum(formDeals)} → × ${pct(p.dealWinRate)} win = ${fmtNum(formWins)} closed`,
+        `${fmtNum(formWins)} × ${fmtMoney(p.acv)} ACV = ${fmtMoney(formAbandonRevenue)}`,
+      ],
+    },
+    reactivation: {
+      value: reactivationRevenue,
+      steps: [
+        `${fmtNum(annualFormFills)} annual form fills × ${p.crmYears} yrs = ${fmtNum(crmLeads)} CRM leads`,
+        `× ${pct(p.reactivationRate)} return to site = ${fmtNum(reactivatedLeads)} re-engaged leads`,
+        `× ${pct(p.reactivationDemoRate)} demo rate = ${fmtNum(reactivationDemos)} demos`,
+        `× ${pct(p.reactivationWinRate)} win rate = ${fmtNum(reactivationWins)} deals × ${fmtMoney(p.acv)} ACV = ${fmtMoney(reactivationRevenue)}`,
+      ],
+    },
+    linkedin: {
+      value: linkedinGain,
+      steps: [
+        `${fmtMoney(p.linkedinAdSpend)}/mo × 12 = ${fmtMoney(p.linkedinAdSpend * 12)} annual spend`,
+        `× ${pct(p.linkedinRoiGain)} efficiency gain = ${fmtMoney(linkedinGain)}`,
+      ],
+    },
+    google: {
+      value: googleGain,
+      steps: [
+        `${fmtMoney(p.googleAdSpend)}/mo × 12 = ${fmtMoney(p.googleAdSpend * 12)} annual spend`,
+        `× ${pct(p.googleRoiGain)} efficiency gain = ${fmtMoney(googleGain)}`,
+      ],
+    },
+  };
 }
+
+// ── components ──────────────────────────────────────────────────────────────
 
 function NumericInput({
   label,
@@ -130,23 +196,52 @@ function NumericInput({
   );
 }
 
+function RoiRow({ label, value, steps }: { label: string; value: number; steps: string[] }) {
+  return (
+    <div className="py-4 border-b border-gray-100 last:border-0">
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <p className="text-sm font-semibold text-gray-800">{label}</p>
+        <span className="text-sm font-bold text-gray-900 shrink-0">{fmtMoney(value)}</span>
+      </div>
+      <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-start gap-2">
+            <span className="text-xs text-gray-400 shrink-0 mt-0.5">{i + 1}.</span>
+            <p className="text-xs font-mono text-gray-600">{step}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const CONFIDENCE_COLORS = {
   high: "bg-green-100 text-green-700",
   medium: "bg-yellow-100 text-yellow-700",
   low: "bg-red-100 text-red-700",
 };
 
-function RoiRow({ label, value, description }: { label: string; value: number; description: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-gray-100 last:border-0">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800">{label}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{description}</p>
-      </div>
-      <span className="text-sm font-semibold text-gray-900 shrink-0">{fmt(value)}</span>
-    </div>
-  );
+const CACHE_KEY = "roi_research_cache";
+
+function loadCache(): Record<string, ResearchData> {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
 }
+
+function saveCache(domain: string, data: ResearchData) {
+  try {
+    const cache = loadCache();
+    cache[domain.toLowerCase().trim()] = data;
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // localStorage unavailable — silently skip
+  }
+}
+
+// ── page ────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const [domain, setDomain] = useState("");
@@ -154,32 +249,40 @@ export default function Home() {
   const [error, setError] = useState("");
   const [research, setResearch] = useState<ResearchData | null>(null);
   const [params, setParams] = useState<Params | null>(null);
+  const [fromCache, setFromCache] = useState(false);
 
   async function handleResearch() {
-    if (!domain.trim()) return;
+    const key = domain.trim().toLowerCase();
+    if (!key) return;
+
     setLoading(true);
     setError("");
     setResearch(null);
     setParams(null);
+    setFromCache(false);
+
+    // Check cache first
+    const cached = loadCache()[key];
+    if (cached) {
+      setResearch(cached);
+      setParams({ monthlyTraffic: cached.monthlyTraffic, acv: cached.acv, tam: cached.tam, linkedinAdSpend: cached.linkedinAdSpend, googleAdSpend: cached.googleAdSpend, ...DEFAULT_RATES });
+      setFromCache(true);
+      setLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/research", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain: domain.trim() }),
+        body: JSON.stringify({ domain: key }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Research failed");
 
+      saveCache(key, data);
       setResearch(data);
-      setParams({
-        monthlyTraffic: data.monthlyTraffic,
-        acv: data.acv,
-        tam: data.tam,
-        linkedinAdSpend: data.linkedinAdSpend,
-        googleAdSpend: data.googleAdSpend,
-        ...DEFAULT_RATES,
-      });
+      setParams({ monthlyTraffic: data.monthlyTraffic, acv: data.acv, tam: data.tam, linkedinAdSpend: data.linkedinAdSpend, googleAdSpend: data.googleAdSpend, ...DEFAULT_RATES });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -198,9 +301,7 @@ export default function Home() {
       <div className="max-w-5xl mx-auto px-4 py-12">
         <div className="mb-10">
           <h1 className="text-3xl font-bold text-gray-900">factors.ai ROI Calculator</h1>
-          <p className="text-gray-500 mt-1">
-            Enter a prospect&apos;s domain to research their metrics and estimate ROI.
-          </p>
+          <p className="text-gray-500 mt-1">Enter a prospect&apos;s domain to research their metrics and estimate ROI.</p>
         </div>
 
         {/* Domain input */}
@@ -231,7 +332,12 @@ export default function Home() {
             <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">{research.companyName}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold text-gray-900">{research.companyName}</h2>
+                    {fromCache && (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">cached</span>
+                    )}
+                  </div>
                   <p className="text-gray-500 text-sm mt-1">{research.description}</p>
                 </div>
                 <span className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${CONFIDENCE_COLORS[research.confidence]}`}>
@@ -240,16 +346,11 @@ export default function Home() {
               </div>
               {research.citations.length > 0 && (
                 <div className="border-t border-gray-100 pt-4">
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Sources used to prefill data</p>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Sources</p>
                   <div className="flex flex-col gap-1">
                     {research.citations.map((url, i) => (
-                      <a
-                        key={i}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:text-blue-700 hover:underline truncate"
-                      >
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-500 hover:text-blue-700 hover:underline truncate">
                         {url}
                       </a>
                     ))}
@@ -305,36 +406,14 @@ export default function Home() {
             {/* ROI Summary */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h3 className="font-semibold text-gray-900 mb-5">Estimated Annual ROI</h3>
-              <div className="space-y-1">
-                <RoiRow
-                  label="Warmbound Sales Uplift"
-                  value={roi.warmboundUplift}
-                  description={`${params.warmAccountPct}% of ${params.tam.toLocaleString()} accounts show intent → reach-to-meeting improves ${params.coldReachToMeeting}% → ${params.warmReachToMeeting}%`}
-                />
-                <RoiRow
-                  label="Form Abandonment Recovery"
-                  value={roi.formAbandonRevenue}
-                  description={`${params.formAbandonRate}% of annual form fills abandoned → identified and re-engaged`}
-                />
-                <RoiRow
-                  label="CRM Lead Reactivation"
-                  value={roi.reactivationRevenue}
-                  description={`${params.reactivationRate}% of ${params.crmYears}-year CRM leads revisit the site`}
-                />
-                <RoiRow
-                  label="LinkedIn Ads Efficiency"
-                  value={roi.linkedinGain}
-                  description={`${params.linkedinRoiGain}% better ROI on ${fmt(params.linkedinAdSpend * 12)}/yr spend`}
-                />
-                <RoiRow
-                  label="Google Ads Efficiency"
-                  value={roi.googleGain}
-                  description={`${params.googleRoiGain}% better ROI on ${fmt(params.googleAdSpend * 12)}/yr spend`}
-                />
-              </div>
+              <RoiRow label="Warmbound Sales Uplift" value={roi.warmbound.value} steps={roi.warmbound.steps} />
+              <RoiRow label="Form Abandonment Recovery" value={roi.formAbandonment.value} steps={roi.formAbandonment.steps} />
+              <RoiRow label="CRM Lead Reactivation" value={roi.reactivation.value} steps={roi.reactivation.steps} />
+              <RoiRow label="LinkedIn Ads Efficiency" value={roi.linkedin.value} steps={roi.linkedin.steps} />
+              <RoiRow label="Google Ads Efficiency" value={roi.google.value} steps={roi.google.steps} />
               <div className="border-t border-gray-200 pt-4 mt-2 flex items-center justify-between">
                 <span className="font-semibold text-gray-900">Total Annual ROI</span>
-                <span className="text-2xl font-bold text-blue-600">{fmt(roi.total)}</span>
+                <span className="text-2xl font-bold text-blue-600">{fmtMoney(roi.total)}</span>
               </div>
             </div>
           </>
