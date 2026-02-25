@@ -54,10 +54,10 @@ const DEFAULT_RATES = {
   demoToDeal: 30,            // Conservative end of 30–35%. Source: Operatix 500+ campaigns
   dealWinRate: 20,           // Mid-market B2B avg: 20–22%. Source: HubSpot 2024, Pavilion/Ebsta
   coldReachToMeeting: 2,     // ~1–2% blended. Source: SalesLoft, Gradient Works
-  warmReachToMeeting: 6,     // ~3x cold. Source: Demandbase, 6sense
+  warmReachToMeeting: 10,    // ~5x cold. Intent-triggered outreach. Source: Demandbase, 6sense
   meetingToDeal: 40,         // Conservative end of 40–50%. Source: Operatix 10-yr avg
   dealToClose: 20,           // Same as win rate for deal stage
-  warmAccountPct: 5,         // Ehrenberg-Bass 95:5 rule. Source: Forrester, Gartner
+  warmAccountPct: 15,        // Accounts showing intent signals (broader than in-market). Source: Bombora, 6sense
   crmYears: 5,
   reactivationRate: 10,      // Low end of 10–15%. Source: Mixed Media Ventures
   reactivationDemoRate: 7,   // Mid of 5–10%. Source: Mutare, Intelemark
@@ -88,11 +88,15 @@ function calcROI(p: Params) {
   const annualTraffic = p.monthlyTraffic * 12;
   const annualFormFills = annualTraffic * (p.formFillRate / 100);
 
-  const coldPipeline = p.tam * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100);
+  // Warmbound uplift: factors.ai identifies warm accounts so you reach them at warm rate
+  // instead of cold. Uplift = warm_accounts × (warm_reach − cold_reach) × meeting→deal
   const warmAccounts = p.tam * (p.warmAccountPct / 100);
-  const warmPipeline = warmAccounts * (p.warmReachToMeeting / 100) * (p.meetingToDeal / 100);
-  const warmboundPipeline = Math.max(0, warmPipeline - coldPipeline) * p.acv;
+  const reachRateDelta = (p.warmReachToMeeting - p.coldReachToMeeting) / 100;
+  const warmboundPipelineDeals = warmAccounts * reachRateDelta * (p.meetingToDeal / 100);
+  const warmboundPipeline = warmboundPipelineDeals * p.acv;
   const warmboundRevenue = warmboundPipeline * (p.dealToClose / 100);
+  // For step display
+  const coldDealsFromWarm = warmAccounts * (p.coldReachToMeeting / 100) * (p.meetingToDeal / 100);
 
   const abandonedForms = annualFormFills * (p.formAbandonRate / 100);
   const formDemos = abandonedForms * (p.abandonToDemo / 100);
@@ -118,10 +122,10 @@ function calcROI(p: Params) {
     warmbound: {
       pipeline: warmboundPipeline, revenue: warmboundRevenue,
       steps: [
-        `${fmtNum(p.tam)} TAM × ${pct(p.warmAccountPct)} intent = ${fmtNum(warmAccounts)} warm accounts`,
-        `Warm: ${fmtNum(warmAccounts)} × ${pct(p.warmReachToMeeting)} reach→meeting × ${pct(p.meetingToDeal)} →deal = ${fmtNum(warmPipeline)} deals`,
-        `Cold baseline: ${fmtNum(p.tam)} × ${pct(p.coldReachToMeeting)} × ${pct(p.meetingToDeal)} = ${fmtNum(coldPipeline)} deals`,
-        `Pipeline uplift: (${fmtNum(warmPipeline)} − ${fmtNum(coldPipeline)}) × ${fmtMoney(p.acv)} ACV = ${fmtMoney(warmboundPipeline)}`,
+        `${fmtNum(p.tam)} TAM × ${pct(p.warmAccountPct)} showing intent = ${fmtNum(warmAccounts)} warm accounts`,
+        `Without factors.ai: ${fmtNum(warmAccounts)} × ${pct(p.coldReachToMeeting)} cold reach × ${pct(p.meetingToDeal)} →deal = ${fmtNum(coldDealsFromWarm)} deals`,
+        `With factors.ai: ${fmtNum(warmAccounts)} × ${pct(p.warmReachToMeeting)} warm reach × ${pct(p.meetingToDeal)} →deal = ${fmtNum(warmboundPipelineDeals)} deals`,
+        `Uplift: ${fmtNum(warmboundPipelineDeals)} − ${fmtNum(coldDealsFromWarm)} = ${fmtNum(warmboundPipelineDeals - coldDealsFromWarm)} extra deals × ${fmtMoney(p.acv)} ACV = ${fmtMoney(warmboundPipeline)}`,
         `Revenue: ${fmtMoney(warmboundPipeline)} × ${pct(p.dealToClose)} win rate = ${fmtMoney(warmboundRevenue)}`,
       ],
     },
@@ -430,7 +434,7 @@ export default function Home() {
                 <ParamRow label="Warm Reach → Meeting" note="Conservative 3x uplift over cold (range: 3–5x). Source: Demandbase, 6sense intent data." value={params.warmReachToMeeting} onChange={set("warmReachToMeeting")} suffix="%" />
                 <ParamRow label="Meeting → Deal" note="Conservative end of 40–50%. Operatix 10-yr avg (500+ campaigns) is 52.7%." value={params.meetingToDeal} onChange={set("meetingToDeal")} suffix="%" />
                 <ParamRow label="Deal → Close" note="Mid-market B2B average: 20–22%. Source: HubSpot 2024, Pavilion/Ebsta." value={params.dealToClose} onChange={set("dealToClose")} suffix="%" />
-                <ParamRow label="% of TAM In-Market" note="Ehrenberg-Bass 95:5 rule — only ~5% of your TAM is in an active buying cycle at any time." value={params.warmAccountPct} onChange={set("warmAccountPct")} suffix="%" />
+                <ParamRow label="% of TAM Showing Intent" note="~15% of TAM shows measurable intent signals at any time (broader than active buying cycle). Source: Bombora, 6sense intent data." value={params.warmAccountPct} onChange={set("warmAccountPct")} suffix="%" />
               </div>
 
               <p className="text-xs font-medium text-gray-500 mt-8 mb-1">CRM reactivation</p>
