@@ -168,7 +168,7 @@ function calcROI(p: Params) {
 
 // ── cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY = "roi_research_cache";
+const CACHE_KEY = "roi_research_cache_v2";  // bump version to bust stale caches
 
 function loadCache(): Record<string, ResearchData> {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}"); }
