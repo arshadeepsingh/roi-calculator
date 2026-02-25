@@ -48,7 +48,7 @@ interface Params {
 // ── defaults ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_RATES = {
-  formFillRate: 1,           // Conservative floor: 1–2%. Source: First Page Sage, Chili Piper 2025
+  formFillRate: 0.5,         // Conservative: 0.5% — accounts for non-ICP traffic on large sites. Source: First Page Sage
   formAbandonRate: 67,       // Industry avg: 67–70%. Source: Formstack 2025, Feathery
   abandonToDemo: 5,          // 5–8% of recovered contacts book a demo. Source: Insiteful
   demoToDeal: 30,            // Conservative end of 30–35%. Source: Operatix 500+ campaigns
@@ -108,8 +108,9 @@ function calcROI(p: Params) {
   const crmLeads = annualFormFills * p.crmYears;
   const reactivatedLeads = crmLeads * (p.reactivationRate / 100);
   const reactivationDemos = reactivatedLeads * (p.reactivationDemoRate / 100);
-  const reactivationPipeline = reactivationDemos * p.acv;
-  const reactivationWins = reactivationDemos * (p.reactivationWinRate / 100);
+  const reactivationPipelineDeals = reactivationDemos * (p.demoToDeal / 100); // demo→deal, same as form abandonment
+  const reactivationPipeline = reactivationPipelineDeals * p.acv;
+  const reactivationWins = reactivationPipelineDeals * (p.reactivationWinRate / 100);
   const reactivationRevenue = reactivationWins * p.acv;
 
   const linkedinSavings = p.linkedinAdSpend * 12 * (p.linkedinRoiGain / 100);
@@ -145,8 +146,8 @@ function calcROI(p: Params) {
         `${fmtNum(annualFormFills)} annual form fills × ${p.crmYears} yrs = ${fmtNum(crmLeads)} CRM leads`,
         `× ${pct(p.reactivationRate)} return to site = ${fmtNum(reactivatedLeads)} re-engaged`,
         `× ${pct(p.reactivationDemoRate)} demo rate = ${fmtNum(reactivationDemos)} demos`,
-        `Pipeline: ${fmtNum(reactivationDemos)} × ${fmtMoney(p.acv)} ACV = ${fmtMoney(reactivationPipeline)}`,
-        `Revenue: ${fmtNum(reactivationDemos)} × ${pct(p.reactivationWinRate)} win = ${fmtNum(reactivationWins)} × ${fmtMoney(p.acv)} = ${fmtMoney(reactivationRevenue)}`,
+        `× ${pct(p.demoToDeal)} demo→deal = ${fmtNum(reactivationPipelineDeals)} pipeline deals × ${fmtMoney(p.acv)} ACV = ${fmtMoney(reactivationPipeline)}`,
+        `Revenue: ${fmtNum(reactivationPipelineDeals)} × ${pct(p.reactivationWinRate)} win = ${fmtNum(reactivationWins)} won × ${fmtMoney(p.acv)} = ${fmtMoney(reactivationRevenue)}`,
       ],
     },
     linkedin: {
@@ -168,7 +169,7 @@ function calcROI(p: Params) {
 
 // ── cache ─────────────────────────────────────────────────────────────────────
 
-const CACHE_KEY = "roi_research_cache_v2";  // bump version to bust stale caches
+const CACHE_KEY = "roi_research_cache_v3";
 
 function loadCache(): Record<string, ResearchData> {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY) ?? "{}"); }
@@ -421,7 +422,7 @@ export default function Home() {
 
               <p className="text-xs font-medium text-gray-500 mt-8 mb-1">Conversion rates</p>
               <div className="border-t border-gray-100">
-                <ParamRow label="Form Fill Rate" note="Conservative floor: 1–2% of all traffic. Source: First Page Sage, Chili Piper 2025." value={params.formFillRate} onChange={set("formFillRate")} suffix="%" />
+                <ParamRow label="Form Fill Rate" note="0.5% conservative — large sites have significant non-ICP traffic (customers, partners, jobseekers). Pure ICP traffic converts 1–2%. Source: First Page Sage." value={params.formFillRate} onChange={set("formFillRate")} suffix="%" />
                 <ParamRow label="Form Abandon Rate" note="Industry average is 67–70%. Even optimised forms see 50–60% abandonment. Source: Formstack 2025." value={params.formAbandonRate} onChange={set("formAbandonRate")} suffix="%" />
                 <ParamRow label="Abandon → Demo" note="Of recovered contacts, 5–8% book a demo. Source: Insiteful, practitioner benchmarks." value={params.abandonToDemo} onChange={set("abandonToDemo")} suffix="%" />
                 <ParamRow label="Demo → Deal" note="Conservative end of 30–35% for mid-market. Source: Operatix 500+ SDR campaigns." value={params.demoToDeal} onChange={set("demoToDeal")} suffix="%" />
